@@ -1,7 +1,10 @@
 import { Component } from '@angular/core';
 import { FormControl } from '@angular/forms';
+import { MatDialog } from '@angular/material/dialog';
 import { combineLatest, Observable } from 'rxjs';
 import { map, startWith, tap } from 'rxjs/operators';
+import { AddEventDialogComponent } from './components/add-event-dialog/add-event-dialog.component';
+import { EventsStorageService } from './services/events-storage.service';
 
 export interface PeriodicElement {
   name: string;
@@ -23,6 +26,11 @@ const ELEMENT_DATA: PeriodicElement[] = [
   {position: 10, name: 'Neon', weight: 20.1797, symbol: 'Ne'},
 ];
 
+type CalenderRow = {
+  events?: Record<string, string>;
+  data: Record<string, string>;
+};
+
 
 enum CalenderViewType {
   Day = 'day',
@@ -38,17 +46,27 @@ enum CalenderViewType {
 export class AppComponent {
 
   calenderViewControl = new FormControl(CalenderViewType.Week);
-  startDate = new FormControl(new Date());
+  startDate = new FormControl();
 
   // displayedColumns: string[] = ['position', 'name', 'weight', 'symbol'];
   // dataSource = ELEMENT_DATA;
 
   readonly columns$: Observable<string[]>;
-  readonly rowData$: Observable<Record<string, string>[]>;
+  readonly rowData$: Observable<CalenderRow[]>;
 
   readonly columnWidth$: Observable<string | null>;
 
-  constructor() {
+  readonly events$ = this.eventsStorageService.events$;
+
+  constructor(
+    private readonly eventsStorageService: EventsStorageService,
+    public dialog: MatDialog,
+  ) {
+
+    const date = new Date();
+    date.setDate(date.getDate() - (date.getDay()||7));
+    this.startDate.setValue(date);
+
     const calenderViewType$: Observable<CalenderViewType> = this.calenderViewControl.valueChanges.pipe(
       startWith(this.calenderViewControl.value),
     );
@@ -68,11 +86,15 @@ export class AppComponent {
           case CalenderViewType.Month:
             return [];
           case CalenderViewType.Week:
-            return new Array(7).fill(null).map((_, index) => {
-              const date = new Date(startDate);
-              date.setDate(startDate.getDate() + index);
-              return `${date.getDate()}/${date.getMonth()}`;
-            });
+            return [
+              " ",
+              ...new Array(7).fill(null).map((_, index) => {
+                const date = new Date(startDate);
+
+                date.setDate(startDate.getDate() + index);
+                return `${date.getDate()}/${date.getMonth()}`;
+              })
+            ];
         }
       }),
       tap(v => console.log(v)),
@@ -88,7 +110,11 @@ export class AppComponent {
           case CalenderViewType.Month:
             return [];
           case CalenderViewType.Week:
-            return new Array(24).fill(null).map(() => ({}));
+            return new Array(24).fill(null).map((_, index) => ({
+              data: {
+                " ": `${index%12 + 1}${index > 12 ? 'pm' : 'am'}`,
+              }
+            }));
         }
       }),
     );
@@ -96,6 +122,18 @@ export class AppComponent {
     this.columnWidth$ = this.columns$.pipe(
       map(columns => columns.length ? `${100/columns.length}%` : null),
     );
+  }
+
+  addEvent(): void {
+    const dialogRef = this.dialog.open(AddEventDialogComponent, {
+      width: '250px',
+      // data: {name: this.name, animal: this.animal},
+    });
+
+    // dialogRef.afterClosed().subscribe(result => {
+    //   console.log('The dialog was closed');
+    //   this.animal = result;
+    // });
   }
 
 }
